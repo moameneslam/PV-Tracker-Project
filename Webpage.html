@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PV Tracker Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
+        .dashboard { max-width: 1000px; margin: 0 auto; background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 30px; }
+        .connection-status { text-align: center; padding: 10px; margin-bottom: 20px; border-radius: 5px; }
+        .connected { background-color: #d4edda; color: #155724; }
+        .disconnected { background-color: #f8d7da; color: #721c24; }
+        .sensor-container { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 30px; }
+        .sensor-card { flex: 1; min-width: 200px; background-color: #f0f8ff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .motor-container { display: flex; gap: 20px; margin-bottom: 30px; }
+        .motor-card { flex: 1; background-color: #fffaf0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .sensor-value { font-size: 24px; font-weight: bold; margin: 10px 0; color: #2c3e50; }
+        .sensor-unit { color: #7f8c8d; }
+        .controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; margin-top: 20px; }
+        button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        button.active { background-color: #28a745; }
+        .debug-area { background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 20px; overflow-y: auto; height: 200px; font-family: monospace; }
+        .last-updated { text-align: right; color: #7f8c8d; font-size: 12px; margin-top: 20px; }
+        .ldr-grid { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 10px; margin: 20px auto; max-width: 300px; }
+        .ldr-sensor { background-color: #e9ecef; text-align: center; padding: 15px; border-radius: 8px; }
+        .ldr-value { font-size: 20px; font-weight: bold; }
+        .arrow-controls { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; gap: 5px; margin: 20px auto; max-width: 200px; }
+        .arrow-btn { padding: 10px; text-align: center; font-size: 18px; }
+        .empty-cell { background-color: transparent; }
+        .ap-info { background-color: #e2e3e5; padding: 10px; border-radius: 5px; margin-bottom: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="ap-info">
+        <h3>Connected to PV Tracker Access Point</h3>
+        <p>SSID: PV_Tracker_AP | Password: 12345678</p>
+    </div>
+    
+    <div class="header">
+        <h1>PV Tracker Dashboard</h1>
+        <p>Real-time monitoring of solar panel tracking system</p>
+    </div>
+
+        <div id="connectionStatus" class="connection-status connected">
+            Connected to ESP32
+        </div>
+
+        <div class="sensor-container">
+            <div class="sensor-card">
+                <h3>Voltage</h3>
+                <div class="sensor-value" id="voltage">--</div>
+                <div class="sensor-unit">Volts</div>
+            </div>
+            <div class="sensor-card">
+                <h3>Current</h3>
+                <div class="sensor-value" id="current">--</div>
+                <div class="sensor-unit">mA</div>
+            </div>
+            <div class="sensor-card">
+                <h3>Power</h3>
+                <div class="sensor-value" id="power">--</div>
+                <div class="sensor-unit">mW</div>
+            </div>
+        </div>
+
+        <h3>Light Sensors (LDRs)</h3>
+        <div class="ldr-grid">
+            <div class="ldr-sensor">
+                <div>Top Left</div>
+                <div class="ldr-value" id="ldr1">--</div>
+            </div>
+            <div class="ldr-sensor">
+                <div>Top Right</div>
+                <div class="ldr-value" id="ldr2">--</div>
+            </div>
+            <div class="ldr-sensor">
+                <div>Bottom Left</div>
+                <div class="ldr-value" id="ldr3">--</div>
+            </div>
+            <div class="ldr-sensor">
+                <div>Bottom Right</div>
+                <div class="ldr-value" id="ldr4">--</div>
+            </div>
+        </div>
+
+        <div class="motor-container">
+            <div class="motor-card">
+                <h3>Motor X Position</h3>
+                <div class="sensor-value" id="motorX">--</div>
+                <div class="sensor-unit">steps</div>
+            </div>
+            <div class="motor-card">
+                <h3>Motor Y Position</h3>
+                <div class="sensor-value" id="motorY">--</div>
+                <div class="sensor-unit">steps</div>
+            </div>
+        </div>
+
+        <h3>Manual Control</h3>
+        <div class="arrow-controls">
+            <div class="empty-cell"></div>
+            <button class="arrow-btn" id="upBtn">&uarr;</button>
+            <div class="empty-cell"></div>
+            <button class="arrow-btn" id="leftBtn">&larr;</button>
+            <div class="empty-cell"></div>
+            <button class="arrow-btn" id="rightBtn">&larr;</button>
+            <div class="empty-cell"></div>
+            <button class="arrow-btn" id="downBtn">&darr;</button>
+            <div class="empty-cell"></div>
+        </div>
+
+        <div class="controls">
+            <button id="autoTrackBtn">Enable Auto Tracking</button>
+            <button id="refreshBtn">Refresh Data</button>
+            <button id="resetBtn">Reset Positions</button>
+            <button id="testValuesBtn">Use Test Values</button>
+        </div>
+
+        <h3>Debug Information</h3>
+        <div class="debug-area" id="debugArea">
+            Waiting for WebSocket messages...
+        </div>
+
+        <div class="last-updated" id="lastUpdated">
+            Last updated: --
+        </div>
+    </div>
+
+    <script>
+        // WebSocket connection
+        let socket;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+        let autoTrackingEnabled = false;
+
+        function log(message) {
+            const debugArea = document.getElementById('debugArea');
+            const timestamp = new Date().toLocaleTimeString();
+            debugArea.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            debugArea.scrollTop = debugArea.scrollHeight;
+        }
+
+        function connectWebSocket() {
+            log("Attempting to connect to WebSocket...");
+            
+            // Connect to WebSocket on the same host
+            socket = new WebSocket(`ws://${window.location.host}/ws`);
+
+            socket.onopen = function(e) {
+                log("✅ Connected to ESP32 WebSocket");
+                updateConnectionStatus(true);
+                reconnectAttempts = 0;
+                // Request initial data
+                socket.send(JSON.stringify({command: "refresh"}));
+            };
+
+            socket.onmessage = function(event) {
+                try {
+                    log(`📥 Received data: ${event.data}`);
+                    const data = JSON.parse(event.data);
+                    updateDashboard(data);
+                } catch (error) {
+                    log(`❌ Error parsing message: ${error.message}`);
+                    log(`Raw message: ${event.data}`);
+                }
+            };
+
+            socket.onclose = function(event) {
+                log(`❌ WebSocket disconnected, code: ${event.code}`);
+                updateConnectionStatus(false);
+                
+                reconnectAttempts++;
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    const delay = reconnectAttempts * 1000;
+                    log(`Reconnecting in ${delay/1000} seconds... (Attempt ${reconnectAttempts}/${maxReconnectAttempts})`);
+                    setTimeout(connectWebSocket, delay);
+                } else {
+                    log("Maximum reconnection attempts reached. Please refresh the page.");
+                }
+            };
+
+            socket.onerror = function(error) {
+                log(`⚠️ WebSocket Error`);
+                updateConnectionStatus(false);
+            };
+        }
+
+        function updateDashboard(data) {
+            if (data.voltage !== undefined) {
+                document.getElementById('voltage').textContent = data.voltage.toFixed(2);
+            }
+            if (data.current !== undefined) {
+                document.getElementById('current').textContent = data.current.toFixed(2);
+            }
+            if (data.power !== undefined) {
+                document.getElementById('power').textContent = data.power.toFixed(2);
+            }
+            if (data.motorX !== undefined) {
+                document.getElementById('motorX').textContent = data.motorX;
+            }
+            if (data.motorY !== undefined) {
+                document.getElementById('motorY').textContent = data.motorY;
+            }
+            if (data.ldr1 !== undefined) {
+                document.getElementById('ldr1').textContent = data.ldr1;
+            }
+            if (data.ldr2 !== undefined) {
+                document.getElementById('ldr2').textContent = data.ldr2;
+            }
+            if (data.ldr3 !== undefined) {
+                document.getElementById('ldr3').textContent = data.ldr3;
+            }
+            if (data.ldr4 !== undefined) {
+                document.getElementById('ldr4').textContent = data.ldr4;
+            }
+            if (data.autoTracking !== undefined) {
+                autoTrackingEnabled = data.autoTracking;
+                updateAutoTrackButton();
+            }
+
+            document.getElementById('lastUpdated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+        }
+
+        function updateConnectionStatus(connected) {
+            const statusElement = document.getElementById('connectionStatus');
+            statusElement.textContent = connected ? "Connected to ESP32" : "Disconnected - Reconnecting...";
+            statusElement.className = `connection-status ${connected ? 'connected' : 'disconnected'}`;
+        }
+
+        function updateAutoTrackButton() {
+            const btn = document.getElementById('autoTrackBtn');
+            if (autoTrackingEnabled) {
+                btn.textContent = "Disable Auto Tracking";
+                btn.classList.add('active');
+            } else {
+                btn.textContent = "Enable Auto Tracking";
+                btn.classList.remove('active');
+            }
+        }
+
+        document.getElementById('refreshBtn').addEventListener('click', () => {
+            if (socket?.readyState === WebSocket.OPEN) {
+                log("🔄 Sending refresh command");
+                socket.send(JSON.stringify({command: "refresh"}));
+            } else {
+                log("❌ Cannot send refresh - WebSocket not connected");
+            }
+        });
+
+        document.getElementById('testValuesBtn').addEventListener('click', () => {
+            if (socket?.readyState === WebSocket.OPEN) {
+                log("🧪 Requesting test values");
+                socket.send(JSON.stringify({command: "test_values"}));
+            } else {
+                log("❌ Cannot send test command - WebSocket not connected");
+            }
+        });
+
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            if (socket?.readyState === WebSocket.OPEN) {
+                log("🔄 Sending reset command");
+                socket.send(JSON.stringify({command: "reset"}));
+                // Request updated data after reset
+                setTimeout(() => {
+                    socket.send(JSON.stringify({command: "refresh"}));
+                }, 500);
+            } else {
+                log("❌ Cannot send reset - WebSocket not connected");
+            }
+        });
+
+        document.getElementById('autoTrackBtn').addEventListener('click', () => {
+            if (socket?.readyState === WebSocket.OPEN) {
+                const newState = !autoTrackingEnabled;
+                log(`${newState ? "🔄 Enabling" : "⏹️ Disabling"} auto tracking`);
+                socket.send(JSON.stringify({
+                    command: "set_auto_tracking",
+                    enabled: newState
+                }));
+            } else {
+                log("❌ Cannot toggle auto tracking - WebSocket not connected");
+            }
+        });
+
+        // Manual control buttons
+        document.getElementById('upBtn').addEventListener('click', () => {
+            if (socket?.readyState === WebSocket.OPEN) {
+                log("⬆️ Moving up");
+                socket.send(JSON.stringify({command: "move", direction: "up", steps: 10}));
+            }
+        });
+
+        document.getElementById('downBtn').addEventListener('click', () => {
+            if (socket?.readyState === WebSocket.OPEN) {
+                log("⬇️ Moving down");
+                socket.send(JSON.stringify({command: "move", direction: "down", steps: 10}));
+            }
+        });
+
+        document.getElementById('leftBtn').addEventListener('click', () => {
+            if (socket?.readyState === WebSocket.OPEN) {
+                log("⬅️ Moving left");
+                socket.send(JSON.stringify({command: "move", direction: "left", steps: 10}));
+            }
+        });
+
+        document.getElementById('rightBtn').addEventListener('click', () => {
+            if (socket?.readyState === WebSocket.OPEN) {
+                log("➡️ Moving right");
+                socket.send(JSON.stringify({command: "move", direction: "right", steps: 10}));
+            }
+        });
+
+        // Initialize connection when page loads
+        window.addEventListener('load', () => {
+            log("Page loaded, connecting to WebSocket");
+            connectWebSocket();
+        });
+        
+        // Setup periodic refresh
+        setInterval(() => {
+            if (socket?.readyState === WebSocket.OPEN) {
+                log("🔄 Auto-refresh");
+                socket.send(JSON.stringify({command: "refresh"}));
+            }
+        }, 5000);
+    </script>
+</body>
+</html>
