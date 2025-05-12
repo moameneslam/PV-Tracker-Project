@@ -185,9 +185,6 @@ Contributions to improve the PV-Tracker Project are welcome:
 5. Push to the branch (`git push origin feature/your-feature`)
 6. Open a Pull Request
 
-## License
-
-This project is released under the MIT License - see the LICENSE file for details.
 
 ## Author
 
